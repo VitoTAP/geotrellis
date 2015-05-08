@@ -31,4 +31,5 @@ object Version {
   val monocle     = "1.0.1"
   lazy val hadoop      = Environment.hadoopVersion
   lazy val spark       = Environment.sparkVersion
+  val accumulo    = "1.6.0-cdh5.1.4"
 }

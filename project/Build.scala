@@ -374,7 +374,7 @@ object GeotrellisBuild extends Build {
           "org.apache.spark" %% "spark-core" % Version.spark % "provided",
           "org.apache.hadoop" % "hadoop-client" % Version.hadoop % "provided",
           "com.quantifind" %% "sumac" % "0.3.0",
-          "org.apache.accumulo" % "accumulo-core" % "1.5.2",
+          "org.apache.accumulo" % "accumulo-core" % Version.accumulo,
           "de.javakaffee" % "kryo-serializers" % "0.27",
           "com.google.uzaygezen" % "uzaygezen-core" % "0.2",
           logging, awsSdkS3,
