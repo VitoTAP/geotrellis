@@ -7,8 +7,10 @@ import geotrellis.spark.io.index._
 import geotrellis.spark.utils._
 import geotrellis.raster._
 import geotrellis.index.zcurve._
+import org.apache.accumulo.core.client.mapred.AbstractInputFormat
 
 import org.apache.hadoop.io.Text
+import org.apache.hadoop.mapred.JobConf
 import org.apache.hadoop.mapreduce.Job
 
 import org.apache.accumulo.core.client.IteratorSetting
@@ -34,7 +36,7 @@ object SpaceTimeRasterRDDReader extends RasterRDDReader[SpaceTimeKey] {
     keyBounds: KeyBounds[SpaceTimeKey],
     keyIndex: KeyIndex[SpaceTimeKey]
   ): Unit = {
-    InputFormatBase.setLogLevel(job, org.apache.log4j.Level.DEBUG)
+    AbstractInputFormat.setLogLevel( job.getConfiguration.asInstanceOf[JobConf],org.apache.log4j.Level.DEBUG)
 
     val ranges: Seq[ARange] = (
       FilterRanges.spatiotemporal(filterSet, keyBounds, keyIndex)
