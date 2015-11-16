@@ -22,10 +22,10 @@ lazy val commonSettings = Seq(
   publishArtifact in Test := false,
   pomIncludeRepository := { _ => false },
 
-  bintrayOrganization := Some("azavea"),
-  bintrayRepository := "geotrellis",
-  bintrayVcsUrl := Some("https://github.com/geotrellis/geotrellis.git"),
-  bintrayPackageLabels := Info.tags,
+  //bintrayOrganization := Some("azavea"),
+  //bintrayRepository := "geotrellis",
+  //bintrayVcsUrl := Some("https://github.com/geotrellis/geotrellis.git"),
+  //bintrayPackageLabels := Info.tags,
 
   pomExtra := (
     <scm>
