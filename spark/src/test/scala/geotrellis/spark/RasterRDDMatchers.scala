@@ -18,18 +18,19 @@ package geotrellis.spark
 
 import org.scalatest._
 import geotrellis.raster._
+import org.apache.spark.rdd._
 
 import scala.reflect.ClassTag
 
 trait RasterRDDMatchers extends RasterMatchers {
-  implicit def rddToTile(rdd: RasterRDD[SpatialKey]) = rdd.stitch.tile
+  implicit def rddToTile(rdd: RDD[(SpatialKey, Tile)]) = rdd.stitch
 
   /*
    * Takes a 3-tuple, min, max, and count and checks
    * a. if every tile has a min/max value set to those passed in,
    * b. if number of tiles == count
    */
-  def rasterShouldBe[K](rdd: RasterRDD[K], minMax: (Int, Int)): Unit = {
+  def rasterShouldBe[K](rdd: RDD[(K, Tile)], minMax: (Int, Int)): Unit = {
     val res = rdd.map(_.tile.findMinMax).collect
     withClue(s"Actual MinMax: ${res.toSeq}; expecting: ${minMax}") {
       res.count(_ == minMax) should be(res.length)
@@ -37,8 +38,8 @@ trait RasterRDDMatchers extends RasterMatchers {
   }
 
   def rastersShouldHaveSameIdsAndTileCount[K: Ordering: ClassTag](
-    first: RasterRDD[K],
-    second: RasterRDD[K]): Unit = {
+    first: RDD[(K, Tile)],
+    second: RDD[(K, Tile)]): Unit = {
 
     val firstKeys = first.sortBy(_.id).map(_.id).collect
     val secondKeys = second.sortBy(_.id).map(_.id).collect
@@ -53,26 +54,26 @@ trait RasterRDDMatchers extends RasterMatchers {
    * a. if every pixel == value, and
    * b. if number of tiles == count
    */
-  def rasterShouldBe(rdd: RasterRDD[SpatialKey], value: Int, count: Int): Unit = {
+  def rasterShouldBe(rdd: RDD[(SpatialKey, Tile)], value: Int, count: Int): Unit = {
     rasterShouldBe(rdd, value)
     rdd.count should be(count)
   }
 
   def rastersEqual(
-    first: RasterRDD[SpatialKey],
-    second: RasterRDD[SpatialKey]): Unit = {
+    first: RDD[(SpatialKey, Tile)],
+    second: RDD[(SpatialKey, Tile)]): Unit = {
 
     tilesEqual(first, second)
   }
 
-  def rasterShouldBe(rdd: RasterRDD[SpaceTimeKey], value: Int, count: Int)(implicit d: DummyImplicit): Unit = {
+  def rasterShouldBe(rdd: RDD[(SpaceTimeKey, Tile)], value: Int, count: Int)(implicit d: DummyImplicit): Unit = {
     rdd.count should be (count)
     rdd.collect.map { case (_, tile) => rasterShouldBe(tile, value) }
   }
 
-  def rastersEqual(
-    first: RasterRDD[SpaceTimeKey],
-    second: RasterRDD[SpaceTimeKey])(implicit d: DummyImplicit): Unit = {
+  def rastersEqual[K](
+    first: RDD[(K, Tile)],
+    second: RDD[(K, Tile)])(implicit d: DummyImplicit): Unit = {
     first.count should be(second.count)
 
     val ft = first.collect
@@ -91,7 +92,7 @@ trait RasterRDDMatchers extends RasterMatchers {
       keyDiff2.isEmpty should be (true)
     }
 
-    val grouped: Map[SpaceTimeKey, Array[(SpaceTimeKey, Tile)]] = 
+    val grouped: Map[K, Array[(K, Tile)]] =
       ft.union(st).groupBy(_._1)
 
     for( (key, tiles) <- grouped) {

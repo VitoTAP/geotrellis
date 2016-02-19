@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package geotrellis.vector.io
+package geotrellis.vector.io.wkt
 
 import com.vividsolutions.jts.io.{WKTReader, WKTWriter}
 import com.vividsolutions.jts.{geom => jts}
@@ -27,9 +27,9 @@ object WKT {
   private val readerBox = new ThreadLocal[WKTReader]
   private val writerBox = new ThreadLocal[WKTWriter]
 
-  def read[G <: Geometry](value: String): G = {
+  def read(value: String): Geometry = {
     if (readerBox.get == null) readerBox.set(new WKTReader(GeomFactory.factory))
-    Geometry[G](readerBox.get.read(value))
+    Geometry(readerBox.get.read(value))
   }
 
   def write(geom: Geometry): String = {

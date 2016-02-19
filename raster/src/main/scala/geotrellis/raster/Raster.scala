@@ -2,48 +2,40 @@ package geotrellis.raster
 
 import geotrellis.raster.reproject._
 import geotrellis.raster.resample._
-import geotrellis.vector.Extent
+import geotrellis.vector._
 import geotrellis.proj4.CRS
 
 object Raster {
-  implicit def tupToRaster(tup: (Tile, Extent)): Raster =
+  def apply[T <: CellGrid](feature: PolygonFeature[T]): Raster[T] =
+    Raster(feature.data, feature.geom.envelope)
+
+  implicit def tupToRaster(tup: (Tile, Extent)): Raster[Tile] =
     Raster(tup._1, tup._2)
 
-  implicit def tupSwapToRaster(tup: (Extent, Tile)): Raster =
+  implicit def tupSwapToRaster(tup: (Extent, Tile)): Raster[Tile] =
     Raster(tup._2, tup._1)
 
-  implicit def rasterToTile(r: Raster): Tile =
+  implicit def rasterToTile[T <: CellGrid](r: Raster[T]): T =
     r.tile
+
+  implicit def rasterToFeature[T <: CellGrid](r: Raster[T]): PolygonFeature[T] =
+    r.asFeature
+
+  implicit def featureToRaster[T <: CellGrid](feature: PolygonFeature[T]): Raster[T] =
+     apply(feature)
 }
 
-case class Raster(tile: Tile, extent: Extent) extends Product2[Tile, Extent] {
-  lazy val rasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+case class Raster[+T <: CellGrid](tile: T, extent: Extent) extends Product2[T, Extent] {
+  def rasterExtent: RasterExtent = RasterExtent(extent, tile.cols, tile.rows)
+  def cellSize: CellSize = rasterExtent.cellSize
 
   def cols: Int = tile.cols
   def rows: Int = tile.rows
+  def dimensions: (Int, Int) = tile.dimensions
 
-  def resample(target: RasterExtent): Raster =
-    Raster(tile.resample(extent, target), target.extent)
+  def asFeature(): PolygonFeature[T] = PolygonFeature(extent.toPolygon, tile: T)
 
-  def resample(target: Extent): Raster =
-    Raster(tile.resample(extent, target), target)
+  def _1: T = tile
 
-  def resample(targetCols: Int, targetRows: Int): Raster =
-    Raster(tile.resample(extent, targetCols, targetRows), extent)
-
-  def crop(target: Extent): Raster =
-    Raster(tile.crop(extent, target), target)
-
-  def reproject(src: CRS, dest: CRS): Raster =
-    tile.reproject(extent, src, dest)
-
-  def reproject(method: ResampleMethod, src: CRS, dest: CRS): Raster =
-    tile.reproject(extent, src, dest, ReprojectOptions(method = method))
-
-  def reproject(src: CRS, dest: CRS, options: ReprojectOptions): Raster =
-    tile.reproject(extent, src, dest, options)
-
-  def _1 = tile
-
-  def _2 = extent
+  def _2: Extent = extent
 }

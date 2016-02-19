@@ -49,7 +49,7 @@ object TiffTagFieldValue {
       case (TypeFloat | TypeDouble) => Some("nan")
     }
 
-  def collect(geoTiff: GeoTiff): (Array[TiffTagFieldValue], Array[Int] => TiffTagFieldValue) = {
+  def collect(geoTiff: GeoTiffData): (Array[TiffTagFieldValue], Array[Int] => TiffTagFieldValue) = {
     implicit val toBytes: ToBytes =
       if(geoTiff.imageData.decompressor.byteOrder == ByteOrder.BIG_ENDIAN)
         BigEndianToBytes
@@ -98,8 +98,13 @@ object TiffTagFieldValue {
       shortValues(start + 3) = shortGeoKeys(i)._4.toShort
     }
 
-    fieldValues += TiffTagFieldValue(GeoKeyDirectoryTag, ShortsFieldType, shortValues.length, toBytes(shortValues))
-    fieldValues += TiffTagFieldValue(GeoDoubleParamsTag, DoublesFieldType, doubleGeoKeys.length, toBytes(doubleGeoKeys))
+    if(!shortValues.isEmpty) {
+      fieldValues += TiffTagFieldValue(GeoKeyDirectoryTag, ShortsFieldType, shortValues.length, toBytes(shortValues))
+    }
+
+    if(!doubleGeoKeys.isEmpty) {
+      fieldValues += TiffTagFieldValue(GeoDoubleParamsTag, DoublesFieldType, doubleGeoKeys.length, toBytes(doubleGeoKeys))
+    }
 
     // Not written (what goes here?):
     //GeoKeyDirectory ASCII     TagCodes.GeoAsciiParamsTag, TiffFieldType.AsciisFieldType, N = Number of Characters (pipe sparated |), GeoKeyAsciis _

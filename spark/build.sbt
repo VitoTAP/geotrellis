@@ -16,10 +16,11 @@ libraryDependencies ++= Seq(
   scalazStream,
   scalatest % "test")
 
-fork := true
+fork in Test := false
 parallelExecution in Test := false
+
 javaOptions ++= List(
-  "-Xmx8G",
+  "-Xmx2G",
   "-XX:MaxPermSize=384m",
   s"-Djava.library.path=${Environment.javaGdalDir}",
   "-Dsun.io.serialization.extendedDebugInfo=true")

@@ -18,6 +18,7 @@ package geotrellis.raster.op.local
 
 import geotrellis.raster._
 import geotrellis.raster.rasterize.Rasterizer
+import geotrellis.raster.rasterize.Rasterize.Options
 import geotrellis.vector.{Geometry, Extent}
 
 trait LocalMethods extends TileMethods
@@ -184,20 +185,31 @@ trait LocalMethods extends TileMethods
   def localTanh(): Tile =
     Tanh(tile)
 
-  /** Masks this tile by the given Geometry. */
+  /** Masks this tile by the given Geometry. Do not include polygon exteriors */
   def mask(ext: Extent, geom: Geometry): Tile =
-    mask(ext, Seq(geom))
+    mask(ext, Seq(geom), Options.DEFAULT)
 
   /** Masks this tile by the given Geometry. */
-  def mask(ext: Extent, geoms: Traversable[Geometry]): Tile = {
+  def mask(ext: Extent, geom: Geometry, options: Options): Tile =
+    mask(ext, Seq(geom), options)
+
+  /** Masks this tile by the given Geometry. Do not include polygon exteriors */
+  def mask(ext: Extent, geoms: Traversable[Geometry]): Tile =
+    mask(ext, geoms, Options.DEFAULT)
+
+  /** Masks this tile by the given Geometry. */
+  def mask(ext: Extent, geoms: Traversable[Geometry], options: Options): Tile = {
     val re = RasterExtent(tile, ext)
     val result = ArrayTile.empty(tile.cellType, tile.cols, tile.rows)
     for (g <- geoms) {
-      Rasterizer.foreachCellByGeometry(g, re) {
-        if (tile.cellType.isFloatingPoint)
-          (col: Int, row: Int) => result.setDouble(col, row, tile.getDouble(col, row))
-        else
-          (col: Int, row: Int) => result.set(col, row, tile.get(col, row))
+      if (tile.cellType.isFloatingPoint) {
+        Rasterizer.foreachCellByGeometry(g, re, options) { (col: Int, row: Int) =>
+          result.setDouble(col, row, tile.getDouble(col, row))
+        }
+      } else {
+        Rasterizer.foreachCellByGeometry(g, re, options) { (col: Int, row: Int) =>
+          result.set(col, row, tile.get(col, row))
+        }
       }
     }
     result

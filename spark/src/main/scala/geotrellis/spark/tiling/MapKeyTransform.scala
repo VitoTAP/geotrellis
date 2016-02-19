@@ -7,6 +7,9 @@ import geotrellis.vector.reproject._
 import geotrellis.proj4._
 
 object MapKeyTransform {
+  def apply(crs: CRS, level: LayoutLevel): MapKeyTransform =
+    apply(crs.worldExtent, level.layout.layoutCols, level.layout.layoutRows)
+
   def apply(crs: CRS, layoutDimensions: (Int, Int)): MapKeyTransform =
     apply(crs.worldExtent, layoutDimensions)
 
@@ -23,10 +26,10 @@ object MapKeyTransform {
 /**
   * Transforms between geographic map coordinates and spatial keys.
   * Since geographic point can only be mapped to a grid tile that contains that point,
-  * transformation from [[Extent]] to [[GridBounds]] to [[Extent]] will likely not
+  * transformation from Extent to GridBounds to Extent will likely not
   * produce the original geographic extent, but a larger one.
   */
-class MapKeyTransform(extent: Extent, layoutCols: Int, layoutRows: Int) extends Serializable {
+class MapKeyTransform(val extent: Extent, val layoutCols: Int, val layoutRows: Int) extends Serializable {
   lazy val tileWidth: Double = extent.width / layoutCols
   lazy val tileHeight: Double = extent.height / layoutRows
 

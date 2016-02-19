@@ -27,15 +27,17 @@
 
 package geotrellis.slick
 
+import geotrellis.vector._
+import geotrellis.vector.io.wkb._
+import geotrellis.vector.io.wkt._
+
+
 import scala.slick.driver.JdbcDriver
 import scala.slick.lifted.Column
 import scala.reflect.ClassTag
 import scala.slick.ast.{ScalaBaseType}
 import scala.slick.jdbc.{PositionedResult, PositionedParameters}
 import java.sql._
-
-import geotrellis.vector._
-import geotrellis.vector.io._
 
 /** 
  * This class provides column types and extension methods to work with Geometry columns in PostGIS.
@@ -109,13 +111,13 @@ class PostGisSupport(override val driver: JdbcDriver) extends PostGisExtensions 
 object PostGisSupportUtils {  
   def toLiteral(geom: Geometry): String = WKT.write(geom)
 
-  def fromLiteral[T <: Geometry](value: String): T = {
+  def fromLiteral[T <: Geometry : ClassTag](value: String): T = {
     splitRSIDAndWKT(value) match {
       case (srid, wkt) => { //TODO - SRID is ignored
         if (wkt.startsWith("00") || wkt.startsWith("01"))
-          WKB.read[T](wkt)
+          WKB.read(wkt).as[T].get
         else 
-          WKT.read[T](wkt)
+          WKT.read(wkt).as[T].get
       }
     }
   }

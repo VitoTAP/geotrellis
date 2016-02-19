@@ -1,5 +1,6 @@
 package geotrellis.spark
 
+import geotrellis.spark._
 import geotrellis.spark.io.json._
 import monocle._
 import org.apache.spark.rdd.RDD
@@ -10,15 +11,21 @@ import spray.json._
 import spray.json.DefaultJsonProtocol._
 import com.github.nscala_time.time.Imports._
 
-// TODO: Change this to be col, row, time, and have the compenent keys derived.
-case class SpaceTimeKey(col: Int, row: Int, time: DateTime) {
+case class SpaceTimeKey(col: Int, row: Int, instant: Long) {
   def spatialKey: SpatialKey = SpatialKey(col, row)
   def temporalKey: TemporalKey = TemporalKey(time)
+  def time: DateTime = new DateTime(instant, DateTimeZone.UTC)
 }
 
 object SpaceTimeKey {
+  def apply(spatialKey: SpatialKey, temporalKey: TemporalKey): SpaceTimeKey =
+    SpaceTimeKey(spatialKey.col, spatialKey.row, temporalKey.time)
+
+  def apply(col: Int, row: Int, dateTime: DateTime): SpaceTimeKey =
+    SpaceTimeKey(col, row, dateTime.getMillis)
+
   implicit object SpatialComponent extends SpatialComponent[SpaceTimeKey] {
-    def lens =  createLens(k => k.spatialKey, sk => k => SpaceTimeKey(sk.col, sk.row, k.time))
+    def lens = createLens(k => k.spatialKey, sk => k => SpaceTimeKey(sk.col, sk.row, k.time))
   }
 
   implicit object TemporalComponent extends TemporalComponent[SpaceTimeKey] {
@@ -27,9 +34,6 @@ object SpaceTimeKey {
 
   implicit def ordering: Ordering[SpaceTimeKey] =
     Ordering.by(stk => (stk.spatialKey, stk.temporalKey))
-
-  def apply(spatialKey: SpatialKey, temporalKey: TemporalKey): SpaceTimeKey =
-    SpaceTimeKey(spatialKey.col, spatialKey.row, temporalKey.time)
 
   implicit object SpaceTimeKeyFormat extends RootJsonFormat[SpaceTimeKey] {
     def write(key: SpaceTimeKey) =
@@ -57,10 +61,10 @@ object SpaceTimeKey {
       SpaceTimeKey(math.max(a.col, b.col), math.max(a.row, b.row), if (a.time > b.time) a.time else b.time )
     }
 
-    def getKeyBounds(rdd: RDD[(SpaceTimeKey, X)] forSome {type X}): KeyBounds[SpaceTimeKey] = {
+    def collectBounds[V](rdd: RDD[(SpaceTimeKey, V)]): Bounds[SpaceTimeKey] = {
       rdd
-        .map{ case (k, tile) => KeyBounds(k, k) }
-        .reduce { combine }
+        .map { case (k, tile) => Bounds(k, k) }
+        .fold(EmptyBounds) { _ combine  _ }
     }
   }
 }

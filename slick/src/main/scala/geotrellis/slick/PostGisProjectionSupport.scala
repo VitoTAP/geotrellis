@@ -35,7 +35,8 @@ import scala.slick.jdbc.{PositionedResult, PositionedParameters}
 import java.sql._
 
 import geotrellis.vector._
-import geotrellis.vector.io._
+import geotrellis.vector.io.wkb._
+import geotrellis.vector.io.wkt._
 
 /** 
  * This class provides column types and extension methods to work with Geometry columns
@@ -114,9 +115,9 @@ object PostGisProjectionSupportUtils {
       case (srid, wkt) =>
         val geom =
           if (wkt.startsWith("00") || wkt.startsWith("01"))
-            WKB.read[Geometry](wkt)
-          else 
-            WKT.read[Geometry](wkt)
+            WKB.read(wkt)
+          else
+            WKT.read(wkt)
 
         if (srid != -1)
           Projected(geom, srid).asInstanceOf[T]

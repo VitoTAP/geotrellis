@@ -46,9 +46,7 @@ case class Row(id: String, colFam: String, colQual: String){
  */
 class BatchAccumuloInputFormatSpec extends FunSpec 
   with Matchers
-  with TestEnvironment
-  with OnlyIfCanRunSpark 
-{
+  with TestEnvironment {
   val data = List[Row] (
     Row("1", "col", "a"), Row("1", "col", "b"), Row("1", "col", "c"),
     Row("2", "col", "a"), Row("2", "col", "b"), Row("2", "col", "c"),
@@ -56,57 +54,55 @@ class BatchAccumuloInputFormatSpec extends FunSpec
   )
   
   describe("BatchAccumuloInputFormat") {
-    ifCanRunSpark {
-      val table = "data"
-      val accumulo = new MockAccumuloInstance()
-      val job = sc.newJob
-      val jconf = job.getConfiguration
-      CB.setMockInstance(classOf[AccumuloInputFormat], jconf, "fake")
-      CB.setConnectorInfo(classOf[AccumuloInputFormat], jconf, "root", new PasswordToken(""))
-      InputFormatBase.setInputTableName(job, table)
-      accumulo.connector.tableOperations().create(table)
-      val writer = accumulo.connector.createBatchWriter(table, new BatchWriterConfig())
-      data map { _.mutation } foreach { writer.addMutation }
+    val table = "data"
+    val accumulo = new MockAccumuloInstance()
+    val job = sc.newJob
+    val jconf = job.getConfiguration
+    CB.setMockInstance(classOf[AccumuloInputFormat], jconf, "fake")
+    CB.setConnectorInfo(classOf[AccumuloInputFormat], jconf, "root", new PasswordToken(""))
+    InputFormatBase.setInputTableName(job, table)
+    accumulo.connector.tableOperations().create(table)
+    val writer = accumulo.connector.createBatchWriter(table, new BatchWriterConfig())
+    data map { _.mutation } foreach { writer.addMutation }
 
-      it("full table scan") {
-        val ifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[AccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet        
-        val bifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[BatchAccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet
-        info(s"AccumloInputFormat records ${ifSet.size}")
-        info(s"BatchAccumloInputFormat records ${bifSet.size}")        
-        bifSet should be (ifSet)
-      }
+    it("full table scan") {
+      val ifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[AccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet        
+      val bifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[BatchAccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet
+      info(s"AccumloInputFormat records ${ifSet.size}")
+      info(s"BatchAccumloInputFormat records ${bifSet.size}")        
+      bifSet should be (ifSet)
+    }
 
-      it("range constraint") {       
-        InputFormatBase.setRanges(job, List(
-          new ARange(new Text("1"), new Text("1")), 
-          new ARange(new Text("3"), new Text("3"))
-        ).asJava)       
-        val ifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[AccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet        
-        val bifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[BatchAccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet
-        info(s"AccumloInputFormat records ${ifSet.size}")
-        info(s"BatchAccumloInputFormat records ${bifSet.size}")        
-        bifSet should be (ifSet)
-        ifSet.size should be (6)
-      }    
+    it("range constraint") {       
+      InputFormatBase.setRanges(job, List(
+        new ARange(new Text("1"), new Text("1")), 
+        new ARange(new Text("3"), new Text("3"))
+      ).asJava)       
+      val ifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[AccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet        
+      val bifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[BatchAccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet
+      info(s"AccumloInputFormat records ${ifSet.size}")
+      info(s"BatchAccumloInputFormat records ${bifSet.size}")        
+      bifSet should be (ifSet)
+      ifSet.size should be (6)
+    }    
 
-      it("filter constraints") {
-        val props =  Map(
-          "startBound" -> "b",
-          "endBound" -> "c",
-          "startInclusive" -> "true",
-          "endInclusive" -> "true"
-        )
+    it("filter constraints") {
+      val props =  Map(
+        "startBound" -> "b",
+        "endBound" -> "c",
+        "startInclusive" -> "true",
+        "endInclusive" -> "true"
+      )
 
-        InputFormatBase.addIterator(job, 
-          new IteratorSetting(1, "TimeColumnFilter", "org.apache.accumulo.core.iterators.user.ColumnSliceFilter", props.asJava))
+      InputFormatBase.addIterator(job, 
+        new IteratorSetting(1, "TimeColumnFilter", "org.apache.accumulo.core.iterators.user.ColumnSliceFilter", props.asJava))
 
-        val ifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[AccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet        
-        val bifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[BatchAccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet
-        info(s"AccumloInputFormat records ${ifSet.size}")
-        info(s"BatchAccumloInputFormat records ${bifSet.size}")
-        bifSet should be (ifSet)
-        ifSet.size should be (4)
-      }
+      val ifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[AccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet        
+      val bifSet = sc.newAPIHadoopRDD(job.getConfiguration, classOf[BatchAccumuloInputFormat], classOf[Key], classOf[Value]).collect.toSet
+      info(s"AccumloInputFormat records ${ifSet.size}")
+      info(s"BatchAccumloInputFormat records ${bifSet.size}")
+      bifSet should be (ifSet)
+      ifSet.size should be (4)
     }
   }
 }

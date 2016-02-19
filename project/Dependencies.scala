@@ -21,7 +21,7 @@ object Dependencies {
   val logging       = "com.typesafe.scala-logging" %% "scala-logging-slf4j" % "2.1.2"
   val scalatest     = "org.scalatest"       %%  "scalatest"      % "2.2.0"
   val scalacheck    = "org.scalacheck"      %% "scalacheck"      % "1.11.1"
-  val jts           = "com.vividsolutions"  %  "jts"             % "1.13"
+  val jts           = "com.vividsolutions"  %  "jts-core"        % "1.14.0"
 
   val monocleCore   = "com.github.julien-truffaut" %% "monocle-core"    % Version.monocle
   val monocleMacro  = "com.github.julien-truffaut" %% "monocle-macro"   % Version.monocle
@@ -40,7 +40,7 @@ object Dependencies {
   val sprayTestkit  = "io.spray"        %% "spray-testkit" % Version.spray
   val sprayCan      = "io.spray"        %% "spray-can"     % Version.spray
   val sprayHttpx    = "io.spray"        %% "spray-httpx"   % Version.spray
-  val sprayJson     = "io.spray"        %% "spray-json"    % "1.3.1"
+  val sprayJson     = "io.spray"        %% "spray-json"    % Version.sprayJson
 
   val apacheMath    = "org.apache.commons" % "commons-math3" % "3.5"
 
@@ -55,7 +55,7 @@ object Dependencies {
   val caliper       = ("com.google.code.caliper" % "caliper" % "1.0-SNAPSHOT"
     from "http://plastic-idolatry.com/jars/caliper-1.0-SNAPSHOT.jar")
 
-  val nscalaTime    = "com.github.nscala-time" %% "nscala-time" % "1.6.0"
+  val nscalaTime    = "com.github.nscala-time" %% "nscala-time" % "2.6.0"
 
   val awsSdkS3      = "com.amazonaws" % "aws-java-sdk-s3" % "1.9.34"
 

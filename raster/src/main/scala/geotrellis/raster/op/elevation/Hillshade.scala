@@ -17,6 +17,9 @@ import scala.math._
  *
  * This operation uses Horn's method for computing hill shading.
  *
+ * If Hillshade operations encounters NoData in its neighborhood, that neighborhood cell well be treated as having
+ * the same elevation as the focal cell.
+ *
  * @see [[http://goo.gl/DtVDQ Esri Desktop's description of Hillshade.]]
  */
 object Hillshade {
@@ -39,7 +42,7 @@ object Hillshade {
 
         val c = cosAz * s.cosAspect + sinAz * s.sinAspect // cos(azimuth - aspect)
         val v = (cosZ * s.cosSlope) + (sinZ * s.sinSlope * c)
-        tile.set(x, y, round(127.0 * max(0.0, v)).toInt)
+        resultTile.set(x, y, round(127.0 * max(0.0, v)).toInt)
       }
     }
   }.execute()

@@ -1,6 +1,7 @@
 package geotrellis.vector
 
 import geotrellis.vector.reproject._
+import GeomFactory._
 import geotrellis.proj4.CRS
 
 import com.vividsolutions.jts.{geom => jts}
@@ -42,8 +43,23 @@ object ProjectedExtent {
  */
 case class Extent(xmin: Double, ymin: Double, xmax: Double, ymax: Double) {
 
-  if (xmin > xmax) throw ExtentRangeError(s"x: $xmin to $xmax")
-  if (ymin > ymax) throw ExtentRangeError(s"y: $ymin to $ymax")
+  // Validation: Do not accept extents min values greater than max values.
+  if (xmin > xmax) { throw ExtentRangeError(s"Invalid Extent: xmin must be less than xmax (xmin=$xmin, xmax=$xmax)")  }
+  if (ymin > ymax) { throw ExtentRangeError(s"Invalid Extent: ymin must be less than ymax (ymin=$ymin, ymax=$ymax)") }
+
+  def jtsGeom =
+    factory.createPolygon(
+      factory.createLinearRing(
+        Array(
+          new jts.Coordinate(xmin, ymax),
+          new jts.Coordinate(xmax, ymax),
+          new jts.Coordinate(xmax, ymin),
+          new jts.Coordinate(xmin, ymin),
+          new jts.Coordinate(xmin, ymax)
+        )
+      ),
+      null
+    )
 
   val width = xmax - xmin
   val height = ymax - ymin
@@ -117,7 +133,7 @@ case class Extent(xmin: Double, ymin: Double, xmax: Double, ymax: Double) {
     x > xmin && x < xmax && y > ymin && y < ymax
 
   def covers(other: Extent): Boolean =
-    intersects(other)
+    contains(other)
 
   def covers(p: Point): Boolean =
     covers(p.x, p.y)
@@ -245,4 +261,18 @@ case class Extent(xmin: Double, ymin: Double, xmax: Double, ymax: Double) {
 
   def toPolygon(): Polygon = 
     Polygon( Line((xmin, ymin), (xmin, ymax), (xmax, ymax), (xmax, ymin), (xmin, ymin)) )
+
+  override
+  def equals(o: Any): Boolean =
+    o match {
+      case other: Extent => 
+        xmin == other.xmin && ymin == other.ymin &&
+        xmax == other.xmax && ymax == other.ymax
+      case _ => false
+  }
+
+  override
+  def hashCode(): Int = (xmin, ymin, xmax, ymax).hashCode
+
+  override def toString = s"Extent($xmin, $ymin, $xmax, $ymax)"
 }
