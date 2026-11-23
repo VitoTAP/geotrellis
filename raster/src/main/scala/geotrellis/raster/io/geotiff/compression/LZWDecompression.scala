@@ -57,8 +57,8 @@ object TokenTable {
 }
 
 
-class LZWDecompressor(segmentSizes: Array[Int], strict: Boolean) extends Decompressor {
-  def this(segmentSizes: Array[Int]) = this(segmentSizes, false)
+class LZWDecompressor(segmentSizes: Array[Int]) extends Decompressor {
+  private[compression] def validateSegmentLength: Boolean = false
 
   def code = LZWCoded
 
@@ -131,7 +131,7 @@ class LZWDecompressor(segmentSizes: Array[Int], strict: Boolean) extends Decompr
       oldCode = code
     }
 
-    if (strict && outputArrayIndex != size)
+    if (validateSegmentLength && outputArrayIndex != size)
       throw new MalformedGeoTiffException(s"Invalid LZW TIFF segment $segmentIndex length")
     outputArray
   }

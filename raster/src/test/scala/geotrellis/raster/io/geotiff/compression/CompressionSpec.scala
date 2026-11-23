@@ -20,9 +20,26 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.funspec.AnyFunSpec
 
 import java.util.Random
-import java.util.zip.Inflater
+import java.util.zip.{DataFormatException, Inflater}
 
 class CompressionSpec extends AnyFunSpec with Matchers {
+  describe("decompressor constructors") {
+    it("preserves the original single-argument API and lenient behavior") {
+      val sizes = Array(8)
+      val decompressors: Seq[Decompressor] = Seq(
+        new LZWDecompressor(segmentSizes = sizes),
+        new DeflateDecompressor(segmentSizes = sizes),
+        new PackBitsDecompressor(segmentSizes = sizes)
+      )
+      decompressors.foreach { decompressor =>
+        decompressor.decompress(Array.emptyByteArray, 0) should equal(new Array[Byte](8))
+      }
+      intercept[DataFormatException] {
+        decompressors(1).decompress(Array[Byte](0, 0), 0)
+      }
+    }
+  }
+
   describe("DeflateCompression") {
     def assertCompleteStream(compressed: Array[Byte], expected: Array[Byte]): Unit = {
       val inflater = new Inflater()

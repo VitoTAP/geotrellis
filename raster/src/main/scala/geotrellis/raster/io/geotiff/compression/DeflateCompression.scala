@@ -60,8 +60,8 @@ object DeflateCompression extends DeflateCompression(Deflater.DEFAULT_COMPRESSIO
   }
 }
 
-class DeflateDecompressor(segmentSizes: Array[Int], strict: Boolean) extends Decompressor {
-  def this(segmentSizes: Array[Int]) = this(segmentSizes, false)
+class DeflateDecompressor(segmentSizes: Array[Int]) extends Decompressor {
+  private[compression] def validateSegmentLength: Boolean = false
 
   def code = ZLibCoded
 
@@ -73,7 +73,7 @@ class DeflateDecompressor(segmentSizes: Array[Int], strict: Boolean) extends Dec
     try {
       inflater.setInput(segment, 0, segment.length)
       val result = new Array[Byte](segmentSizes(segmentIndex))
-      if (!strict) inflater.inflate(result)
+      if (!validateSegmentLength) inflater.inflate(result)
       else {
         var offset = 0
         val extra = new Array[Byte](1)
@@ -90,7 +90,7 @@ class DeflateDecompressor(segmentSizes: Array[Int], strict: Boolean) extends Dec
       }
       result
     } catch {
-      case e: DataFormatException if strict =>
+      case e: DataFormatException if validateSegmentLength =>
         throw new MalformedGeoTiffException(s"Invalid compressed TIFF segment $segmentIndex: ${e.getMessage}")
     } finally inflater.end()
   }

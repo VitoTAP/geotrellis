@@ -19,6 +19,7 @@ package geotrellis.raster.io.geotiff.reader
 import geotrellis.raster._
 import geotrellis.raster.geotiff.GeoTiffRasterSource
 import geotrellis.raster.io.geotiff._
+import geotrellis.raster.io.geotiff.compression.DeflateDecompressor
 import geotrellis.raster.io.geotiff.tags.codes.SampleFormat.{SignedInt, UnsignedInt}
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
@@ -162,13 +163,18 @@ class UInt15GeoTiffReaderSpec extends AnyFunSpec with Matchers {
       }
     }
 
-    it("rejects a truncated compressed segment") {
-      val unpacker = new geotrellis.raster.io.geotiff.compression.PackedUnsignedDecompressor(
-        new geotrellis.raster.io.geotiff.compression.DeflateDecompressor(Array(480), strict = true),
-        Array(480), 15, 2, ByteOrder.LITTLE_ENDIAN
+    it("validates the compressed segment length for packed samples") {
+      val tile = GeoTiffReader.readSingleband(packedPath).tile.asInstanceOf[GeoTiffTile]
+      val helper = new DeflateDecompressor(Array(480))
+      tile.decompressor.decompress(helper.compress(new Array[Byte](480)), 0).length shouldBe 512
+      val invalid = Seq(
+        Array[Byte](0x78, 0x9c.toByte),
+        Array[Byte](0, 0),
+        helper.compress(new Array[Byte](479)),
+        helper.compress(new Array[Byte](481))
       )
-      intercept[MalformedGeoTiffException] {
-        unpacker.decompress(Array[Byte](0x78, 0x9c.toByte), 0)
+      invalid.foreach { bytes =>
+        intercept[MalformedGeoTiffException] { tile.decompressor.decompress(bytes, 0) }
       }
     }
   }

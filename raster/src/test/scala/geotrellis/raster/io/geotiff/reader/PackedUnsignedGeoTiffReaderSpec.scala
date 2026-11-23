@@ -125,17 +125,9 @@ class PackedUnsignedGeoTiffReaderSpec extends AnyFunSpec with Matchers {
     }
 
     it("rejects truncated packed data for each decompressor") {
-      val sizes = Array(8)
-      val decoders = Seq[Decompressor](
-        NoCompressor,
-        new DeflateDecompressor(sizes, strict = true),
-        new LZWDecompressor(sizes, strict = true),
-        new PackBitsDecompressor(sizes, strict = true),
-        ZStdCompression.createDecompressor
-      )
-      for (decoder <- decoders) {
-        val unpacker = new PackedUnsignedDecompressor(decoder, sizes, 2, 1, ByteOrder.BIG_ENDIAN)
-        intercept[MalformedGeoTiffException] { unpacker.decompress(Array.emptyByteArray, 0) }
+      for ((bits, compression) <- Seq((2, "none"), (7, "packbits"), (9, "lzw"), (14, "deflate"), (12, "zstd"))) {
+        val tile = GeoTiffReader.readSingleband(path(bits, compression, "pixel")).tile.asInstanceOf[GeoTiffTile]
+        intercept[MalformedGeoTiffException] { tile.decompressor.decompress(Array.emptyByteArray, 0) }
       }
     }
 
@@ -146,6 +138,12 @@ class PackedUnsignedGeoTiffReaderSpec extends AnyFunSpec with Matchers {
         val truncated = segment.take(segment.length / 2)
         intercept[MalformedGeoTiffException] { tile.decompressor.decompress(truncated, 0) }
       }
+    }
+
+    it("rejects truncated PackBits literals and runs") {
+      val tile = GeoTiffReader.readSingleband(path(7, "packbits", "pixel")).tile.asInstanceOf[GeoTiffTile]
+      for (bytes <- Seq(Array[Byte](127), Array[Byte](-1)))
+        intercept[MalformedGeoTiffException] { tile.decompressor.decompress(bytes, 0) }
     }
   }
 }

@@ -25,8 +25,8 @@ object PackBitsDecompressor {
     new PackBitsDecompressor(segmentSizes)
 }
 
-class PackBitsDecompressor(segmentSizes: Array[Int], strict: Boolean) extends Decompressor {
-  def this(segmentSizes: Array[Int]) = this(segmentSizes, false)
+class PackBitsDecompressor(segmentSizes: Array[Int]) extends Decompressor {
+  private[compression] def validateSegmentLength: Boolean = false
 
   def code = PackBitsCoded
 
@@ -46,7 +46,7 @@ class PackBitsDecompressor(segmentSizes: Array[Int], strict: Boolean) extends De
       if (0 <= headerByte) {
         // next (headerByte + 1) values in segment are literal values
         val limit = total + headerByte + 1
-        if (strict && (limit > size || j + headerByte + 1 > len))
+        if (validateSegmentLength && (limit > size || j + headerByte + 1 > len))
           throw new MalformedGeoTiffException(s"Invalid PackBits TIFF segment $segmentIndex")
         while(total < limit) {
           rowArray(total) = segment(j)
@@ -55,7 +55,7 @@ class PackBitsDecompressor(segmentSizes: Array[Int], strict: Boolean) extends De
         }
       } else if (-128 < headerByte && headerByte < 0) {
         // The next byte of data repeated (1 - headerByte) times
-        if (strict && (j >= len || total + 1 - headerByte > size))
+        if (validateSegmentLength && (j >= len || total + 1 - headerByte > size))
           throw new MalformedGeoTiffException(s"Invalid PackBits TIFF segment $segmentIndex")
         val b = segment(j)
         j += 1
@@ -68,7 +68,7 @@ class PackBitsDecompressor(segmentSizes: Array[Int], strict: Boolean) extends De
       }
     }
 
-    if (strict && total != size)
+    if (validateSegmentLength && total != size)
       throw new MalformedGeoTiffException(s"Invalid PackBits TIFF segment $segmentIndex length")
     rowArray
   }

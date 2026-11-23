@@ -116,9 +116,15 @@ object Decompressor {
 
       val base = tiffTags.compression match {
         case Uncompressed => NoCompressor
-        case LZWCoded => new LZWDecompressor(segmentSizes, strict = true)
-        case ZLibCoded | PkZipCoded => new DeflateDecompressor(segmentSizes, strict = true)
-        case PackBitsCoded => new PackBitsDecompressor(segmentSizes, strict = true)
+        case LZWCoded => new LZWDecompressor(segmentSizes) {
+          override private[compression] def validateSegmentLength: Boolean = true
+        }
+        case ZLibCoded | PkZipCoded => new DeflateDecompressor(segmentSizes) {
+          override private[compression] def validateSegmentLength: Boolean = true
+        }
+        case PackBitsCoded => new PackBitsDecompressor(segmentSizes) {
+          override private[compression] def validateSegmentLength: Boolean = true
+        }
         case ZStdCoded => ZStdCompression.createDecompressor
         case compression =>
           throw new GeoTiffReaderLimitationException(s"Unsupported compression $compression for $bits-bit TIFF")
