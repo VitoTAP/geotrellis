@@ -16,15 +16,19 @@
 
 package geotrellis.raster.io.geotiff.reader
 
+import geotrellis.raster.*
+import geotrellis.raster.geotiff.GeoTiffRasterSource
 import geotrellis.raster.io.geotiff.*
 import geotrellis.raster.io.geotiff.compression.*
 import geotrellis.raster.io.geotiff.tags.TiffTags
 import geotrellis.raster.io.geotiff.tags.codes.SampleFormat.{SignedInt, UnsignedInt}
+import geotrellis.raster.io.geotiff.writer.GeoTiffWriter
 import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
 
-import java.nio.file.Paths
-import java.nio.ByteOrder
+import java.nio.file.{Files, Paths}
+import java.nio.{ByteBuffer, ByteOrder}
+import java.util.zip.Inflater
 
 class PackedUnsignedGeoTiffReaderSpec extends AnyFunSpec with Matchers {
   // GDAL-generated 19x18 big-endian TIFFs with 16x16 tiles.
@@ -38,6 +42,32 @@ class PackedUnsignedGeoTiffReaderSpec extends AnyFunSpec with Matchers {
 
   private def path(bits: Int, compression: String, interleave: String): String =
     Paths.get(getClass.getResource(s"/packed-u$bits-$compression-$interleave.tif").toURI).toString
+
+  // Matching 19x18 GDAL fixtures, with NoData and four overviews.
+  private def fixture(name: String): String =
+    Paths.get(getClass.getResource(s"/$name").toURI).toString
+
+  private def assertTile(actual: Tile, expected: Tile): Unit = {
+    actual.cols shouldBe expected.cols
+    actual.rows shouldBe expected.rows
+    actual.cellType shouldBe expected.cellType
+    for (row <- 0 until actual.rows; col <- 0 until actual.cols)
+      withClue(s"pixel ($col, $row): ") { actual.get(col, row) shouldBe expected.get(col, row) }
+  }
+
+  private def assertCompleteDeflate(tile: GeoTiffTile): Unit = {
+    tile.segmentBytes.foreach { segment =>
+      val inflater = new Inflater()
+      try {
+        inflater.setInput(segment)
+        val buffer = new Array[Byte](1024)
+        while (!inflater.finished()) {
+          val count = inflater.inflate(buffer)
+          withClue("Incomplete DEFLATE stream: ") { (count > 0 || inflater.finished()) shouldBe true }
+        }
+      } finally inflater.end()
+    }
+  }
 
   private def value(bits: Int, band: Int, col: Int, row: Int): Double = {
     val max = (1L << bits) - 1
@@ -58,7 +88,7 @@ class PackedUnsignedGeoTiffReaderSpec extends AnyFunSpec with Matchers {
       for (bits <- 2 to 7) BandType(bits, UnsignedInt) shouldBe UByteBandType
       for (bits <- 9 to 15) BandType(bits, UnsignedInt) shouldBe UInt16BandType
       for (bits <- 17 to 31) BandType(bits, UnsignedInt) shouldBe UInt32BandType
-      for (bits <- Seq(2, 9, 17, 31))
+      for (bits <- Seq(2, 9, 15, 17, 31))
         intercept[UnsupportedOperationException] { BandType(bits, SignedInt) }
     }
 
@@ -122,6 +152,7 @@ class PackedUnsignedGeoTiffReaderSpec extends AnyFunSpec with Matchers {
       )
       for (tiff <- invalid)
         intercept[GeoTiffReaderLimitationException] { Decompressor(tiff, ByteOrder.BIG_ENDIAN) }
+
     }
 
     it("rejects truncated packed data for each decompressor") {
@@ -144,6 +175,111 @@ class PackedUnsignedGeoTiffReaderSpec extends AnyFunSpec with Matchers {
       val tile = GeoTiffReader.readSingleband(path(7, "packbits", "pixel")).tile.asInstanceOf[GeoTiffTile]
       for (bytes <- Seq(Array[Byte](127), Array[Byte](-1)))
         intercept[MalformedGeoTiffException] { tile.decompressor.decompress(bytes, 0) }
+    }
+
+    describe("15-bit samples with NoData and overviews") {
+      val packedPath = fixture("uint15-tiled.tif")
+      val expectedPath = fixture("uint15-expected.tif")
+
+      it("reads tiled samples, NoData, and overviews in both singleband modes") {
+        TiffTags.read(packedPath).bitsPerSample shouldBe 15
+        val expected = GeoTiffReader.readSingleband(expectedPath)
+        for (streaming <- Seq(false, true)) {
+          val actual = GeoTiffReader.readSingleband(packedPath, streaming)
+          actual.cellType shouldBe UShortConstantNoDataCellType
+          actual.tile.get(0, 0) shouldBe NODATA
+          actual.tile.get(1, 0) shouldBe 32767
+          assertTile(actual.tile, expected.tile)
+          actual.overviews.length shouldBe 4
+          actual.overviews.zip(expected.overviews).foreach { case (a, e) => assertTile(a.tile, e.tile) }
+          val tile = actual.tile.asInstanceOf[GeoTiffTile]
+          tile.overviews.length shouldBe 4
+          tile.overviews.zip(expected.overviews).foreach { case (a, e) => assertTile(a, e.tile) }
+          assertTile(actual.crop(14, 14, 18, 17).tile, expected.crop(14, 14, 18, 17).tile)
+        }
+      }
+
+      it("reads the same samples through the multiband reader") {
+        val expected = GeoTiffReader.readMultiband(expectedPath)
+        for (streaming <- Seq(false, true)) {
+          val actual = GeoTiffReader.readMultiband(packedPath, streaming)
+          actual.tile.bandCount shouldBe 1
+          assertTile(actual.tile.band(0), expected.tile.band(0))
+          actual.overviews.length shouldBe 4
+          actual.overviews.zip(expected.overviews).foreach { case (a, e) =>
+            assertTile(a.tile.band(0), e.tile.band(0))
+          }
+          val tile = actual.tile.asInstanceOf[GeoTiffMultibandTile]
+          tile.overviews.length shouldBe 4
+          tile.overviews.zip(expected.overviews).foreach { case (a, e) =>
+            assertTile(a.band(0), e.tile.band(0))
+          }
+        }
+      }
+
+      it("reads a streamed raster-source window crossing tile boundaries") {
+        val bounds = GridBounds(14L, 14L, 18L, 17L)
+        val actual = GeoTiffRasterSource(packedPath).read(bounds).get.tile.band(0)
+        val expected = GeoTiffRasterSource(expectedPath).read(bounds).get.tile.band(0)
+        assertTile(actual, expected)
+      }
+
+      it("writes valid 16-bit samples and overviews in both TIFF layouts") {
+        val expected = GeoTiffReader.readSingleband(expectedPath)
+        val sources = Seq(
+          GeoTiffReader.readSingleband(packedPath, true),
+          GeoTiffReader.readMultiband(packedPath, true)
+        )
+        for (source <- sources; optimized <- Seq(false, true)) {
+          val bytes = GeoTiffWriter.write(source, optimized)
+          TiffTags.read(bytes).bitsPerSample shouldBe 16
+          val written = GeoTiffReader.readSingleband(bytes)
+          assertTile(written.tile, expected.tile)
+          written.overviews.length shouldBe 4
+          written.overviews.zip(expected.overviews).foreach { case (a, e) => assertTile(a.tile, e.tile) }
+          assertCompleteDeflate(written.tile.asInstanceOf[GeoTiffTile])
+          written.overviews.foreach(o => assertCompleteDeflate(o.tile.asInstanceOf[GeoTiffTile]))
+        }
+      }
+
+      it("rejects writing mixed-endian normalized overviews") {
+        val packed = GeoTiffReader.readSingleband(packedPath)
+        val standard = GeoTiffReader.readSingleband(expectedPath)
+        for (tiff <- Seq(
+          packed.copy(overviews = standard.overviews.take(1)),
+          standard.copy(overviews = packed.overviews.take(1))
+        )) {
+          val error = intercept[IllegalArgumentException] { tiff.toByteArray }
+          error.getMessage should include ("mixed output byte orders")
+        }
+      }
+
+      it("rejects unsupported predictors in a 15-bit TIFF") {
+        val bytes = Files.readAllBytes(Paths.get(packedPath))
+        val header = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        val ifd = header.getInt(4)
+        val count = header.getShort(ifd) & 0xffff
+        val predictor = (0 until count).map(i => ifd + 2 + i * 12)
+          .find(i => (header.getShort(i) & 0xffff) == 317).get
+        header.putShort(predictor + 8, 2.toShort)
+        val error = intercept[GeoTiffReaderLimitationException] { GeoTiffReader.readSingleband(bytes) }
+        error.getMessage should include ("15-bit")
+      }
+
+      it("validates the compressed segment length for packed samples") {
+        val tile = GeoTiffReader.readSingleband(packedPath).tile.asInstanceOf[GeoTiffTile]
+        val helper = new DeflateDecompressor(Array(480))
+        tile.decompressor.decompress(helper.compress(new Array[Byte](480)), 0).length shouldBe 512
+        val invalid = Seq(
+          Array[Byte](0x78, 0x9c.toByte),
+          Array[Byte](0, 0),
+          helper.compress(new Array[Byte](479)),
+          helper.compress(new Array[Byte](481))
+        )
+        invalid.foreach { bytes =>
+          intercept[MalformedGeoTiffException] { tile.decompressor.decompress(bytes, 0) }
+        }
+      }
     }
   }
 }
